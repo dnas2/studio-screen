@@ -9,6 +9,7 @@ var thisProgEnds = 0;
 var nextProgType = "";
 var scheduledMessages = [];
 var clock = null;
+var irnNextHour = false;
 loadScheduledMessages();
 loadSchedule();
 
@@ -46,7 +47,9 @@ function updateTimer() {
     if (((dateParts[1] == 0 || dateParts[1] == 30) && dateParts[2] == 0)) { loadSchedule(); }
     // Only update the engineering notice at xx:00:15, xx:10:15, xx:20:15 etc.
     if ((dateParts[1] == 0 || dateParts[1] == 10 || dateParts[1] == 20 || dateParts[1] == 30 || dateParts[1] == 40 || dateParts[1] == 50) && dateParts[2] == 15) { getEngineeringMessage(); }
-    return true;
+    // At xx:50:40, check whether there's been a ping to the IRN endpoint, indicating IRN is scheduled at the top of the next hour
+	if (dateParts[1] == 50 && dateParts[2] == 40) {checkForIrnNextHour();}
+	return true;
 }
 
 function getDateParts() {
@@ -57,6 +60,13 @@ function getDateParts() {
 function updateTextClock(dateParts) {
     $('#time').html(padZeros(dateParts[0]) + ":" + padZeros(dateParts[1]) + ":" + padZeros(dateParts[2]));
     $('#date').html(dateParts[3] + ", " + dateParts[4] + " " + dateParts[5] + " " + dateParts[6]);
+}
+
+function checkForIrnNextHour() {
+	$.getJSON("http://localhost:8081/irnnext", function (data) {
+        if (data['irn'] == '1') { irnNextHour = true; } else { irnNextHour = false; }
+    });
+
 }
 
 function getMicLiveStatus() {
@@ -89,7 +99,7 @@ function updateStudioLiveLight() {
 
 function checkForScheduledNotices(dateParts) {
     messageSet = false;
-    if (dateParts[1] >= 55) { displayTOTHNotice(dateParts[1], dateParts[2]); messageSet = true;}
+    if (dateParts[1] >= 55 && irnNextHour == true) { displayTOTHNotice(dateParts[1], dateParts[2]); messageSet = true;}
     else if (dateParts[2] == 1) {
         // Update only once a minute so we don't degrade performance
         // NB: This is a bit of a hack but it's done at xx:xx:01 to ensure we reset after schedule loads at xx:00:00 and xx:30:00
@@ -221,8 +231,3 @@ function refreshClock() {
         clock.refreshDisplay();
     }
 }
-
-// -------- JSONP magic
-//var tag = document.createElement("script");
-//tag.src = 'http://www.domsmith.co.uk/c105/studioMessage.js?callback=displayMessage&nocache=' + (new Date()).getTime();
-//document.getElementsByTagName("head")[0].appendChild(tag);
